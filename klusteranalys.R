@@ -141,10 +141,15 @@ socioekonomi_karta$klustertillhörighet <- as.factor(socioekonomi_karta$klustert
 
 socioekonomi_karta$klustertillhörighet <- factor(socioekonomi_karta$klustertillhörighet, levels=c("1" ,"2", "3", "4", "5", "6"), labels=c("1 - Låg socioekonomisk nivå", "2", "3", "4", "5", "6 - Hög socioekonomisk nivå"))
 
+deso_namn <- read_excel("DeSO_namn.xlsx")
+
+socioekonomi_karta <- left_join(socioekonomi_karta, deso_namn)
+
 tooltip_css <- "background-color:black; color:white; padding:5px; border-radius:3px; text-align:left; line-height:20px; font-family: Roboto"
 
 klusterkarta <- ggplot(socioekonomi_karta)+
-  geom_sf_interactive(aes(fill=klustertillhörighet, tooltip = paste0("<b>Deso</b>: ", deso, 
+  geom_sf_interactive(aes(fill=klustertillhörighet, tooltip = paste0("<b>DeSO</b>: ", deso, 
+                                                                     "<br><b>Namn</b>: ", Namn, 
                                                                      "<br><b>Kommun:</b> ", kommunnamn, 
                                                                      "<br><b>Hushållsinkomst:</b> ", inkomst, 
                                                                      "<br><b>Andel högutbildade:</b> ", utbildning, "%", 
