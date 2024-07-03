@@ -18,7 +18,7 @@ library(NbClust)
 library(gghighlight)
 library(ggiraph)
 
-## Gör ett karttema för grafen vi gör senare ---
+## Skapar ett karttema för grafen vi gör senare ---
 
 theme_halland_map <- function() {
   theme(
