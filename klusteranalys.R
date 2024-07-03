@@ -1,6 +1,5 @@
 # Analys av socioekonomiska kluster i Halland!
 
-setwd() # Ställa in working directory
 options(scipen=999)
 
 # Paket vi behöver läsa in ----
@@ -17,6 +16,46 @@ library(leaflet)
 library(scales)
 library(NbClust)
 library(gghighlight)
+library(ggiraph)
+
+## Gör ett karttema för grafen vi gör senare ---
+
+theme_halland_map <- function() {
+  theme(
+    axis.line = element_blank(),
+    axis.line.x = element_blank(),
+    axis.line.y = element_blank(),
+    axis.text = element_blank(),
+    axis.text.x = element_blank(),
+    axis.text.y =element_blank(),
+    axis.title = element_blank(),
+    axis.title.x =element_blank(),
+    axis.title.y = element_blank(),
+    axis.ticks = element_blank(),
+    legend.background = element_rect(color = NA, fill = "transparent"),
+    legend.position = "right",
+    legend.direction = "vertical",
+    legend.key = element_rect(fill = "transparent", color = NA),
+    legend.key.height = unit(1.2, "lines"),
+    legend.key.width = unit(1.2, "lines"),
+    legend.text.align = NULL,
+    legend.text.color = NULL,
+    legend.title = element_text(size = 9.5, face = "bold", family = "Roboto Condensed", color = "#00495D"),
+    legend.title.color = NULL,
+    legend.spacing.y = unit(0.3, "cm"),
+    legend.text = element_text(size = 8, family = "Roboto", color = "#00495D", angle = 0),
+    plot.title = element_text(family = "Roboto Condensed", size = 14, color = "#003D4C", face = "bold", hjust = 0, margin = margin(b = 5)), ## Ändra hjust till 0 för titel till vänster, 0,5 för att få den i mitten
+    plot.subtitle = element_text(family = "Roboto", size = 10, color = "#00495D", hjust = 0, margin = margin(b = 0)), ## Ändra hjust till 0 för titel till vänster, 0,5 för i mitten
+    plot.caption = element_text(family = "Roboto", size = 8.5, color = "#00495D", hjust = 1, margin = margin(t = 10)),
+    panel.background = element_rect(fill = "#FFFFFF", color = NA),
+    plot.background = element_rect(fill = "#FFFFFF", color = NA),
+    panel.border = element_blank(),
+    panel.grid = element_blank(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    plot.margin = margin(5, 5, 0, 5), 
+  )
+}
 
 
 # Datainhämtning och bearbetning ----
@@ -28,7 +67,7 @@ socioekonomisk_data_num <- socioekonomisk_data  %>% remove_rownames %>% column_t
 
 socioekonomisk_data_num <- scale(socioekonomisk_data_num) #Eftersom vår data har olika skalor, får vi standardisera den. Sen är klusterdatan klar för analys.
 
-deso_data <- st_read("kartfiler/deso_shape.shp", stringsAsFactors = FALSE) #Läser in kartdata för att senare kunna visualisera resultaten på karta
+deso_data <- st_read("kartfiler/DeSO_2018_v2.gpkg", stringsAsFactors = FALSE) #Läser in kartdata för att senare kunna visualisera resultaten på karta
 
 
 # PCA ----
@@ -94,7 +133,7 @@ socioekonomi_grunddata <- socioekonomi_grunddata %>% # Klusterna är inte i "ord
 
 
 
-# Karta ----
+# Gör en trevlig och interaktiv karta ----
 
 socioekonomi_karta <- inner_join(deso_data, socioekonomisk_data)  #sammanfogar datan med kartfilen
 
@@ -102,25 +141,36 @@ socioekonomi_karta$klustertillhörighet <- as.factor(socioekonomi_karta$klustert
 
 socioekonomi_karta$klustertillhörighet <- factor(socioekonomi_karta$klustertillhörighet, levels=c("1" ,"2", "3", "4", "5", "6"), labels=c("1 - Låg socioekonomisk nivå", "2", "3", "4", "5", "6 - Hög socioekonomisk nivå"))
 
+tooltip_css <- "background-color:black; color:white; padding:5px; border-radius:3px; text-align:left; line-height:20px; font-family: Roboto"
 
 klusterkarta <- ggplot(socioekonomi_karta)+
-  geom_sf(aes(fill=klustertillhörighet))+
-  geom_sf(fill = "transparent", color = "black", linewidth = 1, 
+  geom_sf_interactive(aes(fill=klustertillhörighet, tooltip = paste0("<b>Deso</b>: ", deso, 
+                                                                     "<br><b>Kommun:</b> ", kommunnamn, 
+                                                                     "<br><b>Hushållsinkomst:</b> ", inkomst, 
+                                                                     "<br><b>Andel högutbildade:</b> ", utbildning, "%", 
+                                                                     "<br><b>Unga i hushåll  med låg ekonomisk standard:</b> ", ung_stand, "%",
+                                                                     "<br><b>Ohälsotal:</b> ", ohals,
+                                                                     "<br><b>Aktivitetsgrad:</b> ", forvarvsarb_stud, "%")))+
+  geom_sf(fill = "transparent", color = "black", linewidth = 0.5, 
           data = . %>% group_by(kommun) %>% dplyr::summarize()) +
   scale_fill_brewer(palette="Blues")+
   coord_sf(datum = NA)+
-  theme(panel.background = element_rect(fill = "white"))+
-  labs(fill="Kluster")
+  theme_halland_map()+
+  labs(fill="Kluster",
+       title="Socioekonomiska kluster i Halland",
+       subtitle="DeSO indelade i kluster baserat på socioekonomiska förutsättningar",
+       caption="Källa: Region Hallands bearbetningar av statistik från SCB")
 
-klusterkarta # Nu ser vi var våra kluster finns!
+girafe(ggobj = klusterkarta,
+       options = list(opts_tooltip(css = tooltip_css, opacity=1)))
 
-ggsave("karta.png",width=17.38, height=22.33, units="cm")
+ggsave("karta.png", plot =klusterkarta, width=17.38, height=22.33, units="cm") # Sparar ner kartan (obs ej interaktiv)
 
 # Export av data ----
 
 write_xlsx(socioekonomi_grunddata, "klusterdata.xlsx") #sparar ner datan som "den är"
 
-grupperad_data <- socioekonomi_grunddata %>% # Gör ett grupperat dataset som vi sparar ner
+grupperad_data <- socioekonomi_grunddata %>% # Gör ett grupperat dataset som vi sparar ner för att beräkna värden per kluster
   group_by(klustertillhörighet) %>%
   summarize(inkomst = mean(inkomst),
             utbildning = mean(utbildning),
@@ -132,7 +182,7 @@ grupperad_data <- socioekonomi_grunddata %>% # Gör ett grupperat dataset som vi
   ungroup() %>%
   mutate(andel_befolkning = befolkning/sum(befolkning))
 
-samtliga_områden <- socioekonomi_grunddata %>% # Gör ett grupperat dataset som vi sparar ner
+samtliga_områden <- socioekonomi_grunddata %>% 
   summarize(inkomst = mean(inkomst),
             utbildning = mean(utbildning),
             ung_stand = mean(ung_stand),
